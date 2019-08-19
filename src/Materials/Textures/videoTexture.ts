@@ -5,6 +5,7 @@ import { Nullable } from "../../types";
 import { Scene } from "../../scene";
 import { Engine } from "../../Engines/engine";
 import { Texture } from "../../Materials/Textures/texture";
+import { InternalTexture } from "../../Materials/Textures/internalTexture";
 /**
  * Settings for finer control over video usage
  */
@@ -65,6 +66,9 @@ export class VideoTexture extends Texture {
     private _displayingPosterTexture = false;
     private _settings: VideoTextureSettings;
     private _createInternalTextureOnEvent: string;
+    private _bufferedFrames: InternalTexture[] = [];
+    private _bufferedFramesCount: number;
+    private _bufferedFramesIdx: number = 0;
 
     /**
      * Creates a video texture.
@@ -89,7 +93,7 @@ export class VideoTexture extends Texture {
         settings: VideoTextureSettings = {
             autoPlay: true,
             loop: true,
-            autoUpdateTexture: true,
+            autoUpdateTexture: true
         }
     ) {
         super(null, scene, !generateMipMaps, invertY);
@@ -113,6 +117,8 @@ export class VideoTexture extends Texture {
         if (settings.loop !== undefined) {
             this.video.loop = settings.loop;
         }
+
+        this._bufferedFramesCount = /*settings.frameDelay + */1;
 
         this.video.setAttribute("playsinline", "");
 
@@ -176,6 +182,10 @@ export class VideoTexture extends Texture {
             }
         }
 
+        this._bufferedFrames.forEach(texture => texture.dispose);
+        this._bufferedFrames = [];
+        this._bufferedFramesIdx = 0;
+
         if (!this._engine.needPOTTextures ||
             (Tools.IsExponentOfTwo(this.video.videoWidth) && Tools.IsExponentOfTwo(this.video.videoHeight))) {
             this.wrapU = Texture.WRAP_ADDRESSMODE;
@@ -186,12 +196,16 @@ export class VideoTexture extends Texture {
             this._generateMipMaps = false;
         }
 
-        this._texture = this._engine.createDynamicTexture(
-            this.video.videoWidth,
-            this.video.videoHeight,
-            this._generateMipMaps,
-            this.samplingMode
-        );
+        for (let idx = 0; idx < this._bufferedFramesCount; ++idx) {
+            this._bufferedFrames.push(this._engine.createDynamicTexture(
+                this.video.videoWidth,
+                this.video.videoHeight,
+                this._generateMipMaps,
+                this.samplingMode
+            ));
+        }
+        this._texture = this._bufferedFrames[this._bufferedFramesIdx];
+        this._bufferedFramesIdx = (this._bufferedFramesIdx + 1) % this._bufferedFrames.length;
 
         if (!this.video.autoplay && !this._settings.poster) {
             let oldHandler = this.video.onplaying;
@@ -201,7 +215,7 @@ export class VideoTexture extends Texture {
             this.video.onplaying = () => {
                 this.video.muted = oldMuted;
                 this.video.onplaying = oldHandler;
-                this._texture!.isReady = true;
+                this._bufferedFrames.forEach(texture => texture!.isReady = true);
                 this._updateInternalTexture();
                 if (!error) {
                     this.video.pause();
@@ -225,7 +239,7 @@ export class VideoTexture extends Texture {
             }
             else {
                 this.video.onplaying = oldHandler;
-                this._texture.isReady = true;
+                this._bufferedFrames.forEach(texture => texture!.isReady = true);
                 this._updateInternalTexture();
                 if (this.onLoadObservable.hasObservers()) {
                     this.onLoadObservable.notifyObservers(this);
@@ -233,7 +247,7 @@ export class VideoTexture extends Texture {
             }
         }
         else {
-            this._texture.isReady = true;
+            this._bufferedFrames.forEach(texture => texture!.isReady = true);
             this._updateInternalTexture();
             if (this.onLoadObservable.hasObservers()) {
                 this.onLoadObservable.notifyObservers(this);
@@ -249,6 +263,10 @@ export class VideoTexture extends Texture {
         if (!this._displayingPosterTexture) {
             this._texture.dispose();
             this._texture = null;
+
+            this._bufferedFrames.forEach(texture => texture.dispose);
+            this._bufferedFrames = [];
+            this._bufferedFramesIdx = 0;
         }
     }
 
@@ -298,6 +316,9 @@ export class VideoTexture extends Texture {
         }
 
         this._engine.updateVideoTexture(this._texture, this.video, this._invertY);
+
+        this._texture = this._bufferedFrames[this._bufferedFramesIdx];
+        this._bufferedFramesIdx = (this._bufferedFramesIdx + 1) % this._bufferedFrames.length;
     }
 
     /**
