@@ -250,12 +250,32 @@ export class Camera extends Node {
      * To change the final output target of the camera, camera.outputRenderTarget should be used instead (eg. webXR renders to a render target corresponding to an HMD)
      */
     public customRenderTargets = new Array<RenderTargetTexture>();
+    
+    /**
+     * Notified when the camera's output render target is changed. Provides the new render target texture.
+     */
+    public onOutputRenderTargetChangedObservable: Observable<Nullable<RenderTargetTexture>> = new Observable<Nullable<RenderTargetTexture>>();
+
+    private _outputRenderTarget: Nullable<RenderTargetTexture> = null;
+
     /**
      * When set, the camera will render to this render target instead of the default canvas
      *
      * If the desire is to use the output of a camera as a texture in the scene consider using camera.customRenderTargets instead
      */
-    public outputRenderTarget: Nullable<RenderTargetTexture> = null;
+    public get outputRenderTarget(): Nullable<RenderTargetTexture> {
+        return this._outputRenderTarget;
+    }
+    
+    /**
+     * When set, the camera will render to this render target instead of the default canvas
+     *
+     * If the desire is to use the output of a camera as a texture in the scene consider using camera.customRenderTargets instead
+     */
+    public set outputRenderTarget(texture: Nullable<RenderTargetTexture>) {
+        this._outputRenderTarget = texture;
+        this.onOutputRenderTargetChangedObservable.notifyObservers(this._outputRenderTarget);
+    }
 
     /**
      * Observable triggered when the camera view matrix has changed.

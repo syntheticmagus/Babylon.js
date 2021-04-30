@@ -1,5 +1,5 @@
 import { Nullable } from "../types";
-import { Observable } from "../Misc/observable";
+import { Observable, Observer } from "../Misc/observable";
 import { IDisposable, Scene } from "../scene";
 import { Camera } from "../Cameras/camera";
 import { WebXRSessionManager } from "./webXRSessionManager";
@@ -7,6 +7,8 @@ import { WebXRCamera } from "./webXRCamera";
 import { WebXRState, WebXRRenderTarget } from "./webXRTypes";
 import { WebXRFeaturesManager } from "./webXRFeaturesManager";
 import { Logger } from "../Misc/logger";
+import { RenderTargetTexture } from "../Materials/Textures/renderTargetTexture";
+import { Engine } from "..";
 
 /**
  * Base set of functionality needed to create an XR experience (WebXRSessionManager, Camera, StateManagement, etc.)
@@ -133,7 +135,22 @@ export class WebXRExperienceHelper implements IDisposable {
                 this._nonXRToXRCamera();
             } else {
                 // Kept here, TODO - check if needed
-                this.scene.autoClear = false;
+                this.camera.rigCameras.forEach((rigCamera) => {
+                    let currentRtt: Nullable<RenderTargetTexture> = rigCamera.outputRenderTarget;
+                    let onClearObserver: Nullable<Observer<Engine>>;
+                    const outputRenderTargetHandler = function (rtt: Nullable<RenderTargetTexture>) {
+                        currentRtt?.onClearObservable.remove(onClearObserver);
+                        currentRtt = rtt;
+                        if (currentRtt) {
+                            onClearObserver = currentRtt.onClearObservable.add(function () {});
+                        }
+                    }
+                    const rttChangedObserver = rigCamera.onOutputRenderTargetChangedObservable.add(outputRenderTargetHandler);
+                    this.sessionManager.onXRSessionEnded.addOnce(() => {
+                        rigCamera.onOutputRenderTargetChangedObservable.remove(rttChangedObserver);
+                    });
+                    outputRenderTargetHandler(currentRtt);
+                });
                 this.camera.compensateOnFirstFrame = false;
             }
 
