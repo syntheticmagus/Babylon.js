@@ -8,7 +8,7 @@ import { WebXRState, WebXRRenderTarget } from "./webXRTypes";
 import { WebXRFeaturesManager } from "./webXRFeaturesManager";
 import { Logger } from "../Misc/logger";
 import { RenderTargetTexture } from "../Materials/Textures/renderTargetTexture";
-import { Engine } from "..";
+import { Engine } from "../Engines/engine";
 
 /**
  * Base set of functionality needed to create an XR experience (WebXRSessionManager, Camera, StateManagement, etc.)
@@ -134,9 +134,8 @@ export class WebXRExperienceHelper implements IDisposable {
             if (sessionMode !== "immersive-ar") {
                 this._nonXRToXRCamera();
             } else {
-                // Kept here, TODO - check if needed
-                this.camera.rigCameras.forEach((rigCamera) => {
-                    let currentRtt: Nullable<RenderTargetTexture> = rigCamera.outputRenderTarget;
+                const setupCameraAutoClearing = (cam: Camera) => {
+                    let currentRtt: Nullable<RenderTargetTexture> = cam.outputRenderTarget;
                     let onClearObserver: Nullable<Observer<Engine>>;
                     const outputRenderTargetHandler = function (rtt: Nullable<RenderTargetTexture>) {
                         currentRtt?.onClearObservable.remove(onClearObserver);
@@ -144,13 +143,16 @@ export class WebXRExperienceHelper implements IDisposable {
                         if (currentRtt) {
                             onClearObserver = currentRtt.onClearObservable.add(function () {});
                         }
-                    }
-                    const rttChangedObserver = rigCamera.onOutputRenderTargetChangedObservable.add(outputRenderTargetHandler);
+                    };
+                    const rttChangedObserver = cam.onOutputRenderTargetChangedObservable.add(outputRenderTargetHandler);
                     this.sessionManager.onXRSessionEnded.addOnce(() => {
-                        rigCamera.onOutputRenderTargetChangedObservable.remove(rttChangedObserver);
+                        cam.onOutputRenderTargetChangedObservable.remove(rttChangedObserver);
                     });
                     outputRenderTargetHandler(currentRtt);
-                });
+                };
+                setupCameraAutoClearing(this.camera);
+                this.camera.rigCameras.forEach(setupCameraAutoClearing);
+
                 this.camera.compensateOnFirstFrame = false;
             }
 

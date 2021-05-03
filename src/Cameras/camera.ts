@@ -250,7 +250,7 @@ export class Camera extends Node {
      * To change the final output target of the camera, camera.outputRenderTarget should be used instead (eg. webXR renders to a render target corresponding to an HMD)
      */
     public customRenderTargets = new Array<RenderTargetTexture>();
-    
+
     /**
      * Notified when the camera's output render target is changed. Provides the new render target texture.
      */
@@ -266,7 +266,7 @@ export class Camera extends Node {
     public get outputRenderTarget(): Nullable<RenderTargetTexture> {
         return this._outputRenderTarget;
     }
-    
+
     /**
      * When set, the camera will render to this render target instead of the default canvas
      *
